@@ -175,17 +175,17 @@ class MarkdownToPDF {
                         // Ensure SVG has explicit pixel dimensions for html2canvas
                         const svgEl = container.querySelector('svg');
                         if (svgEl) {
-                            // Use viewBox to determine size if width/height not set
-                            const viewBox = svgEl.getAttribute('viewBox');
-                            if (viewBox) {
-                                const [, , w, h] = viewBox.split(' ').map(Number);
-                                if (w && h) {
-                                    svgEl.setAttribute('width', `${Math.round(w)}px`);
-                                    svgEl.setAttribute('height', `${Math.round(h)}px`);
-                                    svgEl.style.width = `${Math.round(w)}px`;
-                                    svgEl.style.height = `${Math.round(h)}px`;
-                                }
-                            }
+                            // Always set explicit dimensions - this is critical for PDF
+                            svgEl.setAttribute('width', '600px');
+                            svgEl.setAttribute('height', '400px');
+                            svgEl.style.width = '600px';
+                            svgEl.style.height = '400px';
+                            svgEl.style.display = 'block';
+                            svgEl.style.margin = '16px auto';
+                            svgEl.style.backgroundColor = '#ffffff';
+                            svgEl.style.border = '1px solid #e1e4e8';
+                            svgEl.style.borderRadius = '6px';
+                            svgEl.style.padding = '16px';
                         }
                     })
                     .catch((error) => {
@@ -230,25 +230,42 @@ class MarkdownToPDF {
         try {
             // Ensure content fully rendered
             await this.renderMarkdown();
+            
+            // Wait for all content to be ready
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             const marginsValue = Number(document.getElementById('page-margins').value || 15);
-            const margins = [marginsValue, marginsValue, marginsValue, marginsValue];
+            
+            // Simple, working configuration
             const options = {
-                margin: margins,
+                margin: marginsValue,
                 filename: 'markdown-export.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
+                image: { type: 'jpeg', quality: 0.95 },
                 html2canvas: {
-                    scale: 2,
+                    scale: 1,
                     useCORS: true,
-                    backgroundColor: '#ffffff',
-                    letterRendering: true,
-                    allowTaint: false,
-                    removeContainer: true,
-                    windowWidth: preview.scrollWidth
+                    backgroundColor: '#ffffff'
                 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'portrait'
+                }
             };
+            
+            // Force all SVGs to be visible before capture
+            const svgs = preview.querySelectorAll('svg');
+            svgs.forEach(svg => {
+                if (!svg.getAttribute('width') || !svg.getAttribute('height')) {
+                    svg.setAttribute('width', '600');
+                    svg.setAttribute('height', '400');
+                }
+                svg.style.display = 'block';
+                svg.style.visibility = 'visible';
+            });
+            
+            console.log('Generating PDF with', svgs.length, 'diagrams...');
+            
             await html2pdf().set(options).from(preview).save();
         } catch (error) {
             console.error('PDF generation error:', error);
