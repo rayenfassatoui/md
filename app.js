@@ -4,30 +4,15 @@ class MarkdownToPDF {
         this.md = null;
         this.debounceTimer = null;
         this.mermaidCounter = 0;
-        
         this.init();
     }
     
     init() {
         // Initialize markdown-it
-        this.md = window.markdownit({
-            html: true,
-            linkify: true,
-            typographer: true,
-            breaks: false
-        });
+        this.md = window.markdownit({ html: true, linkify: true, typographer: true, breaks: false });
         
         // Initialize Mermaid
-        mermaid.initialize({
-            startOnLoad: false,
-            theme: 'default',
-            themeVariables: {
-                primaryColor: '#0969da',
-                primaryTextColor: '#24292f',
-                primaryBorderColor: '#d1d9e0',
-                lineColor: '#656d76'
-            }
-        });
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
         
         this.bindEvents();
         this.loadSampleMarkdown();
@@ -38,32 +23,18 @@ class MarkdownToPDF {
         const mdInput = document.getElementById('md-input');
         const generateBtn = document.getElementById('generate-btn');
         
-        // Debounced input rendering
         mdInput.addEventListener('input', () => {
             clearTimeout(this.debounceTimer);
-            this.debounceTimer = setTimeout(() => {
-                this.renderMarkdown();
-            }, 200);
-        });
-        
-        // Sidebar controls
-        this.bindSidebarControls();
-        
-        // Generate PDF
-        generateBtn.addEventListener('click', () => {
-            this.generatePDF();
-        });
-        
-        // Load from localStorage on page load
-        const saved = localStorage.getItem('markdown-content');
-        if (saved) {
-            mdInput.value = saved;
-        }
-        
-        // Save to localStorage on input
-        mdInput.addEventListener('input', () => {
+            this.debounceTimer = setTimeout(() => this.renderMarkdown(), 200);
             localStorage.setItem('markdown-content', mdInput.value);
         });
+        
+        const saved = localStorage.getItem('markdown-content');
+        if (saved) mdInput.value = saved;
+        
+        generateBtn.addEventListener('click', () => this.generatePDF());
+        
+        this.bindSidebarControls();
     }
     
     bindSidebarControls() {
@@ -204,13 +175,16 @@ class MarkdownToPDF {
                         // Ensure SVG has explicit pixel dimensions for html2canvas
                         const svgEl = container.querySelector('svg');
                         if (svgEl) {
-                            const rect = svgEl.getBoundingClientRect();
-                            if (rect.width && rect.height) {
-                                svgEl.setAttribute('width', `${Math.round(rect.width)}px`);
-                                svgEl.setAttribute('height', `${Math.round(rect.height)}px`);
-                                // Also set style width/height to lock layout
-                                svgEl.style.width = `${Math.round(rect.width)}px`;
-                                svgEl.style.height = `${Math.round(rect.height)}px`;
+                            // Use viewBox to determine size if width/height not set
+                            const viewBox = svgEl.getAttribute('viewBox');
+                            if (viewBox) {
+                                const [, , w, h] = viewBox.split(' ').map(Number);
+                                if (w && h) {
+                                    svgEl.setAttribute('width', `${Math.round(w)}px`);
+                                    svgEl.setAttribute('height', `${Math.round(h)}px`);
+                                    svgEl.style.width = `${Math.round(w)}px`;
+                                    svgEl.style.height = `${Math.round(h)}px`;
+                                }
                             }
                         }
                     })
@@ -248,24 +222,19 @@ class MarkdownToPDF {
         const btnLoading = generateBtn.querySelector('.btn-loading');
         const preview = document.getElementById('preview');
         
-        // Disable button and show loading
         generateBtn.disabled = true;
         btnText.style.display = 'none';
         btnLoading.style.display = 'block';
-        
-        // Lock sidebar controls
         this.toggleSidebarControls(true);
         
         try {
-            // Wait a bit for any remaining Mermaid renders
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Get page margins from controls
-            const margins = document.getElementById('page-margins').value;
-            
-            // Configure PDF options
+            // Ensure content fully rendered
+            await this.renderMarkdown();
+
+            const marginsValue = Number(document.getElementById('page-margins').value || 15);
+            const margins = [marginsValue, marginsValue, marginsValue, marginsValue];
             const options = {
-                margin: [margins, margins, margins, margins],
+                margin: margins,
                 filename: 'markdown-export.pdf',
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: {
@@ -274,34 +243,20 @@ class MarkdownToPDF {
                     backgroundColor: '#ffffff',
                     letterRendering: true,
                     allowTaint: false,
-                    removeContainer: true
+                    removeContainer: true,
+                    windowWidth: preview.scrollWidth
                 },
-                jsPDF: {
-                    unit: 'mm',
-                    format: 'a4',
-                    orientation: 'portrait',
-                    compress: true
-                },
-                try {
-                    // Re-render and wait for all diagrams/styles to be applied before export
-                    await this.renderMarkdown();
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
             };
-            
-            // Generate PDF
             await html2pdf().set(options).from(preview).save();
-            
         } catch (error) {
-                        margin: [margins, margins, margins, margins],
+            console.error('PDF generation error:', error);
             alert('Error generating PDF. Please try again.');
         } finally {
-            // Re-enable button and hide loading
-                            scale: 2,
+            generateBtn.disabled = false;
             btnText.style.display = 'block';
             btnLoading.style.display = 'none';
-            
-                            allowTaint: false,
-                            // Ensure capture width matches on-screen width to avoid scaling issues
-                            windowWidth: preview.scrollWidth
             this.toggleSidebarControls(false);
         }
     }
