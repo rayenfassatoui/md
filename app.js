@@ -34,7 +34,39 @@ class MarkdownToPDF {
         
         generateBtn.addEventListener('click', () => this.generatePDF());
         
-        this.bindSidebarControls();
+        // Disable sidebar controls to prevent PDF issues
+        // this.bindSidebarControls();
+        
+        // Set default values and disable controls
+        this.setDefaultStyles();
+    }
+    
+    setDefaultStyles() {
+        // Set all controls to default values and disable them
+        const fontSize = document.getElementById('font-size');
+        const lineHeight = document.getElementById('line-height');
+        const pageMargins = document.getElementById('page-margins');
+        const themeVariant = document.getElementById('theme-variant');
+        
+        // Set defaults
+        fontSize.value = 14;
+        lineHeight.value = 1.6;
+        pageMargins.value = 15;
+        themeVariant.value = 'default';
+        
+        // Update display values
+        document.getElementById('font-size-value').textContent = '14px';
+        document.getElementById('line-height-value').textContent = '1.6';
+        document.getElementById('page-margins-value').textContent = '15mm';
+        
+        // Disable all controls to prevent changes
+        fontSize.disabled = true;
+        lineHeight.disabled = true;
+        pageMargins.disabled = true;
+        themeVariant.disabled = true;
+        
+        // Apply default preview styles
+        this.applyPreviewStyles();
     }
     
     bindSidebarControls() {
@@ -75,66 +107,17 @@ class MarkdownToPDF {
     
     applyPreviewStyles() {
         const preview = document.getElementById('preview');
-        const fontSize = document.getElementById('font-size').value;
-        const lineHeight = document.getElementById('line-height').value;
-        const themeVariant = document.getElementById('theme-variant').value;
         
-        // Apply font size and line height
-        preview.style.fontSize = `${fontSize}px`;
-        preview.style.lineHeight = lineHeight;
-        
-        // Apply theme variant
+        // Force default GitHub styling - no custom changes
+        preview.style.fontSize = '14px';
+        preview.style.lineHeight = '1.6';
         preview.className = 'markdown-body';
-        if (themeVariant === 'compact') {
-            preview.classList.add('theme-compact');
-        } else if (themeVariant === 'spacious') {
-            preview.classList.add('theme-spacious');
-        }
         
-        // Add theme-specific styles
+        // Remove any dynamic styles that might interfere
         const existingStyle = document.getElementById('dynamic-styles');
         if (existingStyle) {
             existingStyle.remove();
         }
-        
-        const style = document.createElement('style');
-        style.id = 'dynamic-styles';
-        
-        let css = '';
-        if (themeVariant === 'compact') {
-            css = `
-                .theme-compact {
-                    padding: 16px 24px !important;
-                }
-                .theme-compact h1, .theme-compact h2, .theme-compact h3,
-                .theme-compact h4, .theme-compact h5, .theme-compact h6 {
-                    margin-top: 16px !important;
-                    margin-bottom: 8px !important;
-                }
-                .theme-compact p, .theme-compact ul, .theme-compact ol {
-                    margin-bottom: 8px !important;
-                }
-            `;
-        } else if (themeVariant === 'spacious') {
-            css = `
-                .theme-spacious {
-                    padding: 48px 40px !important;
-                    max-width: 800px;
-                    margin: 0 auto;
-                }
-                .theme-spacious h1, .theme-spacious h2, .theme-spacious h3,
-                .theme-spacious h4, .theme-spacious h5, .theme-spacious h6 {
-                    margin-top: 32px !important;
-                    margin-bottom: 16px !important;
-                }
-                .theme-spacious p, .theme-spacious ul, .theme-spacious ol {
-                    margin-bottom: 20px !important;
-                }
-            `;
-        }
-        
-        style.textContent = css;
-        document.head.appendChild(style);
     }
     
     async renderMarkdown() {
@@ -236,15 +219,60 @@ class MarkdownToPDF {
 
             const marginsValue = Number(document.getElementById('page-margins').value || 15);
             
-            // Simple, working configuration
+            // Fix SVGs for better PDF capture without security issues
+            const svgs = preview.querySelectorAll('svg');
+            console.log('Preparing', svgs.length, 'SVG diagrams for PDF...');
+            
+            svgs.forEach(svg => {
+                // Make SVGs inline and properly sized
+                svg.style.width = '600px';
+                svg.style.height = '400px';
+                svg.style.display = 'block';
+                svg.style.margin = '20px auto';
+                svg.style.backgroundColor = '#ffffff';
+                svg.style.border = '2px solid #e1e4e8';
+                svg.style.borderRadius = '8px';
+                svg.style.padding = '20px';
+                svg.setAttribute('width', '600');
+                svg.setAttribute('height', '400');
+                
+                // Add xmlns for better compatibility
+                svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                
+                // Force all text to be black and visible
+                const texts = svg.querySelectorAll('text, tspan');
+                texts.forEach(text => {
+                    text.style.fill = '#000000';
+                    text.style.fontSize = '14px';
+                    text.style.fontFamily = 'Arial, sans-serif';
+                });
+                
+                // Force all paths to be visible
+                const paths = svg.querySelectorAll('path, rect, circle, line');
+                paths.forEach(path => {
+                    if (!path.getAttribute('fill') || path.getAttribute('fill') === 'none') {
+                        path.setAttribute('stroke', '#333333');
+                        path.setAttribute('stroke-width', '2');
+                    }
+                });
+            });
+            
+            // Wait a bit more for styling to apply
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Enhanced PDF options for better SVG support
             const options = {
                 margin: marginsValue,
                 filename: 'markdown-export.pdf',
-                image: { type: 'jpeg', quality: 0.95 },
+                image: { type: 'png', quality: 1.0 },
                 html2canvas: {
-                    scale: 1,
-                    useCORS: true,
-                    backgroundColor: '#ffffff'
+                    scale: 1.5,
+                    useCORS: false,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: true,
+                    foreignObjectRendering: true,
+                    removeContainer: false
                 },
                 jsPDF: { 
                     unit: 'mm', 
@@ -253,19 +281,7 @@ class MarkdownToPDF {
                 }
             };
             
-            // Force all SVGs to be visible before capture
-            const svgs = preview.querySelectorAll('svg');
-            svgs.forEach(svg => {
-                if (!svg.getAttribute('width') || !svg.getAttribute('height')) {
-                    svg.setAttribute('width', '600');
-                    svg.setAttribute('height', '400');
-                }
-                svg.style.display = 'block';
-                svg.style.visibility = 'visible';
-            });
-            
-            console.log('Generating PDF with', svgs.length, 'diagrams...');
-            
+            console.log('Generating PDF...');
             await html2pdf().set(options).from(preview).save();
         } catch (error) {
             console.error('PDF generation error:', error);

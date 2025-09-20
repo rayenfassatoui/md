@@ -51,6 +51,7 @@ body {
     display: flex;
     background: var(--bg-primary);
     min-height: 0;
+    width: 100%; /* Take full width since no sidebar */
 }
 
 .editor-section {
