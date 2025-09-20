@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Markdown to PDF</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.4.0/github-markdown-light.min.css">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.2/markdown-it.min.js"></script>
+    <!-- Prefer latest stable Mermaid (v10.9.1 as of 2025-09); fallback to jsDelivr if needed -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <div class="editor-section">
+                <label for="md-input" class="sr-only">Markdown Input</label>
+                <textarea 
+                    id="md-input" 
+                    placeholder="Paste your Markdown here..."
+                    aria-label="Markdown input area"
+                ></textarea>
+            </div>
+            
+            <div class="preview-section">
+                <div id="preview" class="markdown-body"></div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h3>Styling Options</h3>
+            <div class="controls">
+                <div class="control-group">
+                    <label for="font-size">Font Size</label>
+                    <input type="range" id="font-size" min="12" max="20" value="14" step="1">
+                    <span id="font-size-value">14px</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="line-height">Line Height</label>
+                    <input type="range" id="line-height" min="1.2" max="2.0" value="1.6" step="0.1">
+                    <span id="line-height-value">1.6</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="page-margins">Page Margins (mm)</label>
+                    <input type="range" id="page-margins" min="10" max="25" value="15" step="1">
+                    <span id="page-margins-value">15mm</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="theme-variant">Theme Variant</label>
+                    <select id="theme-variant">
+                        <option value="default">Default GitHub</option>
+                        <option value="compact">Compact</option>
+                        <option value="spacious">Spacious</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Generate Button -->
+    <div class="generate-section">
+        <button id="generate-btn" class="generate-btn">
+            <span class="btn-text">Generate PDF</span>
+            <span class="btn-loading" style="display: none;">Generating...</span>
+        </button>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
