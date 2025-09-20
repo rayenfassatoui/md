@@ -77,6 +77,28 @@
             <span class="btn-loading" style="display: none;">Generating...</span>
         </button>
     </div>
+
+    <!-- Tiny settings panel -->
+    <div id="mini-settings" class="mini-settings" aria-label="PDF settings">
+        <div class="mini-row">
+            <label for="diagram-scale">Diagram size</label>
+            <input id="diagram-scale" type="range" min="50" max="100" value="80" step="5" />
+            <span id="diagram-scale-val">80%</span>
+        </div>
+        <div class="mini-row">
+            <label for="pdf-margin">Margins</label>
+            <select id="pdf-margin">
+                <option value="10">10mm</option>
+                <option value="12" selected>12mm</option>
+                <option value="15">15mm</option>
+                <option value="20">20mm</option>
+            </select>
+        </div>
+        <div class="mini-row">
+            <label for="keep-one-page">Keep diagram on one page</label>
+            <input id="keep-one-page" type="checkbox" checked />
+        </div>
+    </div>
     
     <script src="app.js"></script>
 </body>

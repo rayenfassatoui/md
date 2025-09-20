@@ -54,6 +54,15 @@ class MarkdownToPDF {
         this.init();
     }
     
+    saveMiniSettings() {
+        try {
+            const diagramScale = parseInt(document.getElementById('diagram-scale')?.value || '80');
+            const marginMm = parseInt(document.getElementById('pdf-margin')?.value || '12');
+            const keepOnePage = !!document.getElementById('keep-one-page')?.checked;
+            localStorage.setItem('mini-settings', JSON.stringify({ diagramScale, marginMm, keepOnePage }));
+        } catch {}
+    }
+
     init() {
         // Initialize markdown-it
         this.md = window.markdownit({ html: true, linkify: true, typographer: true, breaks: false });
@@ -69,6 +78,10 @@ class MarkdownToPDF {
     bindEvents() {
         const mdInput = document.getElementById('md-input');
         const generateBtn = document.getElementById('generate-btn');
+        const diagScale = document.getElementById('diagram-scale');
+        const diagScaleVal = document.getElementById('diagram-scale-val');
+        const marginSel = document.getElementById('pdf-margin');
+        const keepOnePageCb = document.getElementById('keep-one-page');
         
         mdInput.addEventListener('input', () => {
             clearTimeout(this.debounceTimer);
@@ -76,7 +89,7 @@ class MarkdownToPDF {
             localStorage.setItem('markdown-content', mdInput.value);
         });
         
-        const saved = localStorage.getItem('markdown-content');
+    const saved = localStorage.getItem('markdown-content');
         if (saved) mdInput.value = saved;
         
         generateBtn.addEventListener('click', () => this.generatePDF());
@@ -86,6 +99,21 @@ class MarkdownToPDF {
         
         // Set default values and disable controls
         this.setDefaultStyles();
+
+        // Mini settings: restore + react
+        try {
+            const s = JSON.parse(localStorage.getItem('mini-settings') || '{}');
+            if (s.diagramScale) diagScale.value = s.diagramScale;
+            if (s.marginMm) marginSel.value = String(s.marginMm);
+            if (typeof s.keepOnePage === 'boolean') keepOnePageCb.checked = s.keepOnePage;
+        } catch {}
+        diagScaleVal.textContent = diagScale.value + '%';
+        diagScale.addEventListener('input', () => {
+            diagScaleVal.textContent = diagScale.value + '%';
+            this.saveMiniSettings();
+        });
+        marginSel.addEventListener('change', () => this.saveMiniSettings());
+        keepOnePageCb.addEventListener('change', () => this.saveMiniSettings());
     }
     
     setDefaultStyles() {
@@ -236,27 +264,39 @@ class MarkdownToPDF {
             const clone = preview.cloneNode(true);
             // Ensure GitHub markdown class is present
             clone.className = 'markdown-body';
+            // Read mini settings
+            const diagScaleEl = document.getElementById('diagram-scale');
+            const marginSelEl = document.getElementById('pdf-margin');
+            const keepOnePageEl = document.getElementById('keep-one-page');
+            const userDiagramScale = Math.max(50, Math.min(100, parseInt(diagScaleEl?.value || '80'))) / 100; // 0.5..1
+            const userMarginMm = Math.max(5, Math.min(30, parseInt(marginSelEl?.value || '12')));
+            const keepOnePage = !!keepOnePageEl?.checked;
+
             // Compute content width in px based on A4 and chosen margins
             const pxPerMm = 96 / 25.4;
             const pageWidthMm = 210;
             const pageHeightMm = 297;
-            const marginMm = 12; // friendlier white space
+            const marginMm = userMarginMm; // from UI
             const contentWidthPx = Math.floor((pageWidthMm - 2 * marginMm) * pxPerMm);
             const contentHeightPx = Math.floor((pageHeightMm - 2 * marginMm) * pxPerMm);
+            const diagramScale = userDiagramScale; // 50%-100%
 
             // Constrain width to fit page content area
             clone.style.maxWidth = contentWidthPx + 'px';
             clone.style.margin = '0 auto';
 
-            // Do NOT allow diagrams to split across pages; add a subtle frame
+            // Keep diagrams on one page if requested; add a subtle frame
             clone.querySelectorAll('.diagram').forEach(d => {
-                d.style.pageBreakInside = 'avoid';
-                d.style.breakInside = 'avoid';
+                d.style.pageBreakInside = keepOnePage ? 'avoid' : 'auto';
+                d.style.breakInside = keepOnePage ? 'avoid' : 'auto';
                 d.style.border = '1px solid #eaeef2';
                 d.style.borderRadius = '8px';
                 d.style.padding = '12px';
                 d.style.background = '#ffffff';
                 d.style.margin = '16px auto';
+                // Reduce default width so diagrams don't look too large
+                d.style.maxWidth = Math.floor(contentWidthPx * diagramScale) + 'px';
+                d.style.width = '100%';
             });
 
             // Important: convert inline SVGs to raster images to avoid html2canvas SVG issues
@@ -284,10 +324,9 @@ class MarkdownToPDF {
                         windowWidth: wrapper.scrollWidth
                     },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak:    {
-                        mode: ['css', 'legacy', 'avoid-all'],
-                        avoid: ['.diagram']
-                    }
+                    pagebreak:    keepOnePage
+                        ? { mode: ['css', 'legacy', 'avoid-all'], avoid: ['.diagram'] }
+                        : { mode: ['css', 'legacy'] }
                 };
 
                 // Create a transient container off-screen
@@ -375,7 +414,7 @@ class MarkdownToPDF {
                     const pxPerMm = 96 / 25.4;
                     const pageHeightMm = 297;
                     const marginMm = 12;
-                    const safePx = Math.floor((pageHeightMm - 2 * marginMm) * pxPerMm * 0.9); // small cushion
+                    const safePx = Math.floor((pageHeightMm - 2 * marginMm) * pxPerMm * 0.8); // smaller to feel less tall
                     img.style.maxHeight = safePx + 'px';
                 } catch {}
             } catch (e) {
