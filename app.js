@@ -1,166 +1,107 @@
-// Sample markdown content
-const sample = `# Markdown to PDF Converter
-
-## Features
-
-- **Real-time preview** of your markdown
-- **Mermaid diagram** support
-- **GitHub-style** rendering
-- **PDF generation** with proper formatting
-
-## Sample Mermaid Diagram
-
-\`\`\`mermaid
-graph TD
-    A[Start] --> B{Is it working?}
-    B -->|Yes| C[Great!]
-    B -->|No| D[Debug]
-    D --> B
-    C --> E[Generate PDF]
-\`\`\`
-
-## Code Example
-
-\`\`\`javascript
-function generatePDF() {
-    console.log('Generating PDF...');
-}
-\`\`\`
-
-## Lists
-
-### Todo List
-- [x] Implement markdown rendering
-- [x] Add Mermaid support
-- [ ] Add more themes
-- [ ] Add export options
-
-### Features
-1. Live preview
-2. PDF export
-3. Diagram support
-4. GitHub styling
-
----
-
-**Ready to generate your PDF!**`;
-
-// Markdown to PDF Web App
 class MarkdownToPDF {
     constructor() {
-        this.md = null;
+        this.md = window.markdownit({ html: true, linkify: true, typographer: true });
         this.debounceTimer = null;
+        this.isResizing = false;
         this.mermaidCounter = 0;
         this.init();
     }
-    
-    saveMiniSettings() {
-        try {
-            const diagramScale = parseInt(document.getElementById('diagram-scale')?.value || '80');
-            const marginMm = parseInt(document.getElementById('pdf-margin')?.value || '12');
-            const keepOnePage = !!document.getElementById('keep-one-page')?.checked;
-            localStorage.setItem('mini-settings', JSON.stringify({ diagramScale, marginMm, keepOnePage }));
-        } catch {}
-    }
 
     init() {
-        // Initialize markdown-it
-        this.md = window.markdownit({ html: true, linkify: true, typographer: true, breaks: false });
-        
-        // Initialize Mermaid
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
-        
+        this.loadTheme();
         this.bindEvents();
         this.loadSampleMarkdown();
         this.renderMarkdown();
     }
-    
+
     bindEvents() {
         const mdInput = document.getElementById('md-input');
         const generateBtn = document.getElementById('generate-btn');
-        const diagScale = document.getElementById('diagram-scale');
-        const diagScaleVal = document.getElementById('diagram-scale-val');
-        const marginSel = document.getElementById('pdf-margin');
-        const keepOnePageCb = document.getElementById('keep-one-page');
-        
+        const focusModeBtn = document.getElementById('focus-mode-btn');
+        const themeSwitcherBtn = document.getElementById('theme-switcher-btn');
+        const resizer = document.getElementById('resizer');
+        const hamburgerBtn = document.getElementById('hamburger-btn');
+        const menuContainer = document.getElementById('menu-container');
+
         mdInput.addEventListener('input', () => {
             clearTimeout(this.debounceTimer);
-            this.debounceTimer = setTimeout(() => this.renderMarkdown(), 200);
+            this.debounceTimer = setTimeout(() => this.renderMarkdown(), 250);
             localStorage.setItem('markdown-content', mdInput.value);
         });
-        
-    const saved = localStorage.getItem('markdown-content');
-        if (saved) mdInput.value = saved;
-        
-        generateBtn.addEventListener('click', () => this.generatePDF());
-        
-        // Disable sidebar controls to prevent PDF issues
-        // this.bindSidebarControls();
-        
-        // Set default values and disable controls
-        this.setDefaultStyles();
 
-        // Mini settings: restore + react
-        try {
-            const s = JSON.parse(localStorage.getItem('mini-settings') || '{}');
-            if (s.diagramScale) diagScale.value = s.diagramScale;
-            if (s.marginMm) marginSel.value = String(s.marginMm);
-            if (typeof s.keepOnePage === 'boolean') keepOnePageCb.checked = s.keepOnePage;
-        } catch {}
-        diagScaleVal.textContent = diagScale.value + '%';
-        diagScale.addEventListener('input', () => {
-            diagScaleVal.textContent = diagScale.value + '%';
-            this.saveMiniSettings();
+        generateBtn.addEventListener('click', () => this.generatePDF());
+        focusModeBtn.addEventListener('click', () => this.toggleFocusMode());
+        themeSwitcherBtn.addEventListener('click', () => this.switchTheme());
+
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuContainer.classList.toggle('menu-open');
         });
-        marginSel.addEventListener('change', () => this.saveMiniSettings());
-        keepOnePageCb.addEventListener('change', () => this.saveMiniSettings());
+        
+        document.addEventListener('click', (e) => {
+            if (!menuContainer.contains(e.target)) {
+                menuContainer.classList.remove('menu-open');
+            }
+        });
+
+        resizer.addEventListener('mousedown', (e) => {
+            const startX = e.clientX;
+            const editorPanel = document.getElementById('editor-panel');
+            const startWidth = editorPanel.offsetWidth;
+
+            const doDrag = (e) => {
+                const newWidth = startWidth + e.clientX - startX;
+                editorPanel.style.flexBasis = `${newWidth}px`;
+            };
+
+            const stopDrag = () => {
+                document.removeEventListener('mousemove', doDrag);
+                document.removeEventListener('mouseup', stopDrag);
+            };
+
+            document.addEventListener('mousemove', doDrag);
+            document.addEventListener('mouseup', stopDrag);
+        });
+
+        const appContainer = document.querySelector('.app-container');
+        appContainer.addEventListener('dragover', e => e.preventDefault());
+        appContainer.addEventListener('drop', e => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('text/')) {
+                const reader = new FileReader();
+                reader.onload = event => {
+                    mdInput.value = event.target.result;
+                    this.renderMarkdown();
+                };
+                reader.readAsText(file);
+            }
+        });
     }
-    
-    setDefaultStyles() {
-        // Set all controls to default values and disable them
-        const fontSize = document.getElementById('font-size');
-        const lineHeight = document.getElementById('line-height');
-        const pageMargins = document.getElementById('page-margins');
-        const themeVariant = document.getElementById('theme-variant');
+
+    toggleFocusMode() {
+        document.body.classList.toggle('focus-mode');
+        const previewPanel = document.getElementById('preview-panel');
+        const resizer = document.getElementById('resizer');
+        const isFocused = document.body.classList.contains('focus-mode');
         
-        // Set defaults
-        fontSize.value = 14;
-        lineHeight.value = 1.6;
-        pageMargins.value = 15;
-        themeVariant.value = 'default';
-        
-        // Update display values
-        document.getElementById('font-size-value').textContent = '14px';
-        document.getElementById('line-height-value').textContent = '1.6';
-        document.getElementById('page-margins-value').textContent = '15mm';
-        
-        // Disable all controls to prevent changes
-        fontSize.disabled = true;
-        lineHeight.disabled = true;
-        pageMargins.disabled = true;
-        themeVariant.disabled = true;
-        
-        // Apply default preview styles
-        this.applyPreviewStyles();
+        previewPanel.style.display = isFocused ? 'none' : 'flex';
+        resizer.style.display = isFocused ? 'none' : 'flex';
     }
-    
-    
-    
-    applyPreviewStyles() {
-        const preview = document.getElementById('preview');
-        
-        // Force default GitHub styling - no custom changes
-        preview.style.fontSize = '14px';
-        preview.style.lineHeight = '1.6';
-        preview.className = 'markdown-body';
-        
-        // Remove any dynamic styles that might interfere
-        const existingStyle = document.getElementById('dynamic-styles');
-        if (existingStyle) {
-            existingStyle.remove();
+
+    switchTheme() {
+        const isDark = document.body.classList.toggle('dark-theme');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+
+    loadTheme() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark') {
+            document.body.classList.add('dark-theme');
         }
     }
-    
+
     async renderMarkdown() {
         const input = document.getElementById('md-input').value;
         const preview = document.getElementById('preview');
@@ -174,6 +115,11 @@ class MarkdownToPDF {
             // Render markdown into the DOM first
             preview.innerHTML = this.md.render(input);
             
+            // Expand all spoilers
+            preview.querySelectorAll('details').forEach(details => {
+                details.open = true;
+            });
+
             // Find mermaid code blocks in the DOM to avoid HTML entity issues
             const codeBlocks = preview.querySelectorAll('pre > code.language-mermaid');
             const renderTasks = [];
@@ -202,7 +148,7 @@ class MarkdownToPDF {
                             // Responsive styling: let it scale to container width, preserve aspect ratio
                             svgEl.removeAttribute('width');
                             svgEl.removeAttribute('height');
-                            svgEl.style.maxWidth = '30%';
+                            svgEl.style.maxWidth = '100%';
                             svgEl.style.height = 'auto';
                             svgEl.style.display = 'block';
                             svgEl.style.margin = '16px auto';
@@ -222,141 +168,116 @@ class MarkdownToPDF {
                 await Promise.allSettled(renderTasks);
             }
             
-            // Apply current styles
-            this.applyPreviewStyles();
-            
         } catch (error) {
             console.error('Markdown rendering error:', error);
             preview.innerHTML = `<pre style="color: #d1242f;">Error rendering markdown: ${error.message}</pre>`;
         }
     }
-    
+
     async generatePDF() {
         const generateBtn = document.getElementById('generate-btn');
         const btnText = generateBtn.querySelector('.btn-text');
         const btnLoading = generateBtn.querySelector('.btn-loading');
         const preview = document.getElementById('preview');
 
-        // Show loading state
-        btnText.style.display = 'none';
-        btnLoading.style.display = 'inline';
-        generateBtn.disabled = true;
-
-        const resetBtn = () => {
-            setTimeout(() => {
-                btnText.style.display = 'inline';
-                btnLoading.style.display = 'none';
-                generateBtn.disabled = false;
-            }, 600);
-        };
+        this.showLoadingState(btnText, btnLoading, generateBtn);
 
         try {
-            // Wait for markdown + mermaid to finish
-            await this.wait(400);
+            await this.wait(500);
 
-            // Validate content
-            if (!preview.innerHTML.trim() || preview.innerHTML.includes('Preview will appear here')) {
+            if (!this.validateContent(preview)) {
                 alert('Please add some markdown content before generating PDF.');
                 return;
             }
 
-            // Clone the preview so we can tweak for print without touching UI
-            const clone = preview.cloneNode(true);
-            // Ensure GitHub markdown class is present
-            clone.className = 'markdown-body';
-            // Read mini settings
-            const diagScaleEl = document.getElementById('diagram-scale');
-            const marginSelEl = document.getElementById('pdf-margin');
-            const keepOnePageEl = document.getElementById('keep-one-page');
-            const userDiagramScale = Math.max(50, Math.min(100, parseInt(diagScaleEl?.value || '80'))) / 100; // 0.5..1
-            const userMarginMm = Math.max(5, Math.min(30, parseInt(marginSelEl?.value || '12')));
-            const keepOnePage = !!keepOnePageEl?.checked;
+            // Prepare content for PDF
+            const preparedElement = await this.prepareContentForPDF(preview);
+            
+            // Generate PDF using Worker API for large documents
+            await this.generatePDFWithWorkerAPI(preparedElement);
 
-            // Compute content width in px based on A4 and chosen margins
-            const pxPerMm = 96 / 25.4;
-            const pageWidthMm = 210;
-            const pageHeightMm = 297;
-            const marginMm = userMarginMm; // from UI
-            const contentWidthPx = Math.floor((pageWidthMm - 2 * marginMm) * pxPerMm);
-            const contentHeightPx = Math.floor((pageHeightMm - 2 * marginMm) * pxPerMm);
-            const diagramScale = userDiagramScale; // 50%-100%
-
-            // Constrain width to fit page content area
-            clone.style.maxWidth = contentWidthPx + 'px';
-            clone.style.margin = '0 auto';
-
-            // Keep diagrams on one page if requested; add a subtle frame
-            clone.querySelectorAll('.diagram').forEach(d => {
-                d.style.pageBreakInside = keepOnePage ? 'avoid' : 'auto';
-                d.style.breakInside = keepOnePage ? 'avoid' : 'auto';
-                d.style.border = '1px solid #eaeef2';
-                d.style.borderRadius = '8px';
-                d.style.padding = '12px';
-                d.style.background = '#ffffff';
-                d.style.margin = '16px auto';
-                // Reduce default width so diagrams don't look too large
-                d.style.maxWidth = Math.floor(contentWidthPx * diagramScale) + 'px';
-                d.style.width = '100%';
-            });
-
-            // Important: convert inline SVGs to raster images to avoid html2canvas SVG issues
-            await this.convertMermaidSvgsToImages(clone);
-
-            // Wrap in a container to be passed to html2pdf (no padding; margins handled by html2pdf)
-            const wrapper = document.createElement('div');
-            wrapper.style.padding = '0';
-            wrapper.style.background = '#ffffff';
-            wrapper.appendChild(clone);
-
-            // Use html2pdf to preserve full HTML/CSS formatting
-            // Fallback to old jsPDF flow if html2pdf is missing
-            if (window.html2pdf) {
-                const opt = {
-                    margin:       marginMm, // mm
-                    filename:     'markdown-document.pdf',
-                    image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  {
-                        scale: 2,
-                        useCORS: true,
-                        backgroundColor: '#ffffff',
-                        logging: false,
-                        // Allow large canvases for long docs
-                        windowWidth: wrapper.scrollWidth
-                    },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak:    keepOnePage
-                        ? { mode: ['css', 'legacy', 'avoid-all'], avoid: ['.diagram'] }
-                        : { mode: ['css', 'legacy'] }
-                };
-
-                // Create a transient container off-screen
-                const tmp = document.createElement('div');
-                tmp.style.position = 'fixed';
-                tmp.style.left = '-10000px';
-                tmp.style.top = '0';
-                tmp.style.width = Math.max(contentWidthPx + 40, 800) + 'px';
-                tmp.style.background = '#ffffff';
-                tmp.appendChild(wrapper);
-                document.body.appendChild(tmp);
-
-                await window.html2pdf().set(opt).from(wrapper).save();
-
-                // Cleanup
-                document.body.removeChild(tmp);
-            } else {
-                // Fallback: text-based export (re-uses existing logic)
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                const markdownContent = document.getElementById('md-input').value || '';
-                await this.addMarkdownContentToPDF(pdf, markdownContent);
-                pdf.save('markdown-document.pdf');
-            }
         } catch (error) {
             console.error('PDF generation error:', error);
-            alert('Error generating PDF: ' + (error && error.message ? error.message : error));
+            alert(`PDF generation failed: ${error?.message || 'Unknown error'}`);
         } finally {
-            resetBtn();
+            this.resetLoadingState(btnText, btnLoading, generateBtn);
         }
+    }
+
+    showLoadingState(btnText, btnLoading, generateBtn) {
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline-block';
+        generateBtn.disabled = true;
+    }
+
+    resetLoadingState(btnText, btnLoading, generateBtn) {
+        setTimeout(() => {
+            btnText.style.display = 'inline-block';
+            btnLoading.style.display = 'none';
+            generateBtn.disabled = false;
+        }, 500);
+    }
+
+    validateContent(preview) {
+        return preview.innerHTML.trim() && !preview.innerHTML.includes('Preview will appear here');
+    }
+
+    async prepareContentForPDF(preview) {
+        // Clone and prepare content
+        const clone = preview.cloneNode(true);
+        
+        // Convert SVGs to images for PDF compatibility
+        await this.convertMermaidSvgsToImages(clone);
+
+        // Clean and optimize cloned content
+        this.optimizeClonedContent(clone);
+        
+        return clone;
+    }
+
+    optimizeClonedContent(clone) {
+        // Ensure proper markdown styling
+        clone.className = 'markdown-body';
+        
+        // Basic styling for PDF
+        clone.style.padding = '20px';
+        clone.style.backgroundColor = '#ffffff';
+        clone.style.color = '#000000';
+        clone.style.fontSize = '14px';
+        clone.style.lineHeight = '1.6';
+
+        // Optimize diagrams for PDF
+        clone.querySelectorAll('.diagram').forEach(diagram => {
+            diagram.style.margin = '20px auto';
+            diagram.style.textAlign = 'center';
+            diagram.style.maxWidth = '100%';
+            diagram.style.pageBreakInside = 'avoid';
+        });
+    }
+
+
+
+    async generatePDFWithWorkerAPI(element) {
+        // Simple, reliable options that actually work
+        const options = {
+            margin: 15,
+            filename: 'markdown-export.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: 'a4', 
+                orientation: 'portrait' 
+            }
+        };
+
+        // Use the simple, working approach
+        await html2pdf().set(options).from(element).save();
     }
 
     // Small helper to pause
@@ -364,278 +285,131 @@ class MarkdownToPDF {
         return new Promise(res => setTimeout(res, ms));
     }
 
-    // Convert any .diagram svg elements within container to <img> with PNG data URL
+    // Convert SVG diagrams to images for better PDF compatibility
     async convertMermaidSvgsToImages(container) {
         const svgs = Array.from(container.querySelectorAll('.diagram svg'));
         if (!svgs.length) return;
 
-        // Convert sequentially to reduce memory spikes on very large docs
-        for (const svg of svgs) {
-            try {
-                // Determine intrinsic SVG dimensions from viewBox when available
-                let w = 0;
-                let h = 0;
-                const vb = svg.getAttribute('viewBox');
-                if (vb) {
-                    const parts = vb.split(/\s+/).map(Number);
-                    if (parts.length === 4 && isFinite(parts[2]) && isFinite(parts[3])) {
-                        w = parts[2];
-                        h = parts[3];
-                    }
-                }
-                if (!w || !h) {
-                    const aw = parseFloat((svg.getAttribute('width') || '').replace('px',''));
-                    const ah = parseFloat((svg.getAttribute('height') || '').replace('px',''));
-                    if (isFinite(aw) && isFinite(ah) && aw > 0 && ah > 0) {
-                        w = aw; h = ah;
-                    } else {
-                        const rect = svg.getBoundingClientRect();
-                        w = rect.width || 600; h = rect.height || 400;
-                    }
-                }
+        const conversionPromises = svgs.map(svg => this.convertSvgToImage(svg));
+        await Promise.all(conversionPromises);
+    }
 
-                const dataUrl = await this.svgToImageData(svg, { width: w, height: h, scale: 2 });
-
-                const img = document.createElement('img');
-                img.src = dataUrl;
-                img.alt = 'Diagram';
-                img.style.display = 'block';
-                img.style.margin = '16px auto';
-                img.style.maxWidth = '100%';
-                img.style.height = 'auto';
-                // Do not force intrinsic attributes; let it resize to container
-
-                // Replace the SVG with the raster image
-                const parent = svg.parentNode;
-                if (parent) parent.replaceChild(img, svg);
-
-                // After insertion, ensure image fits within one page height to avoid cropping
-                try {
-                    const pxPerMm = 96 / 25.4;
-                    const pageHeightMm = 297;
-                    const marginMm = 12;
-                    const safePx = Math.floor((pageHeightMm - 2 * marginMm) * pxPerMm * 0.8); // smaller to feel less tall
-                    img.style.maxHeight = safePx + 'px';
-                } catch {}
-            } catch (e) {
-                console.warn('Failed to rasterize SVG, keeping original:', e);
-            }
+    async convertSvgToImage(svg) {
+        try {
+            const dimensions = this.getSvgDimensions(svg);
+            const dataUrl = await this.svgToImageData(svg, dimensions);
+            
+            const img = this.createOptimizedImage(dataUrl);
+            this.replaceSvgWithImage(svg, img);
+        } catch (error) {
+            console.warn('Failed to convert SVG, keeping original:', error);
         }
     }
 
-    // Render an inline SVG element to a PNG data URL with optional width/height and scale
-    async svgToImageData(svgElement, opts = {}) {
-        return new Promise((resolve, reject) => {
-            try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                // Determine target render size
-                let w = opts.width || parseFloat((svgElement.getAttribute('width') || '').replace('px',''));
-                let h = opts.height || parseFloat((svgElement.getAttribute('height') || '').replace('px',''));
-                if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) {
-                    const rect = svgElement.getBoundingClientRect();
-                    w = rect.width || 600; h = rect.height || 400;
-                }
-                const scale = opts.scale && opts.scale > 0 ? opts.scale : 1;
-                canvas.width = Math.max(1, Math.round(w * scale));
-                canvas.height = Math.max(1, Math.round(h * scale));
-
-                // Serialize SVG and ensure namespace
-                let svgData = new XMLSerializer().serializeToString(svgElement);
-                if (!svgData.includes('xmlns')) {
-                    svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-                }
-                const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
-
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-
-                img.onload = function() {
-                    try {
-                        // White background for better PDF rendering
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        const imageData = canvas.toDataURL('image/png', 1.0);
-                        resolve(imageData);
-                    } catch (err) {
-                        console.warn('Canvas toDataURL failed:', err);
-                        resolve(svgDataUrl);
-                    }
-                };
-                img.onerror = function(e) {
-                    console.warn('Image load failed:', e);
-                    reject(new Error('Failed to load SVG'));
-                };
-                img.src = svgDataUrl;
-            } catch (error) {
-                console.error('SVG conversion error:', error);
-                reject(error);
+    getSvgDimensions(svg) {
+        // Try viewBox first
+        const viewBox = svg.getAttribute('viewBox');
+        if (viewBox) {
+            const [, , width, height] = viewBox.split(/\s+/).map(Number);
+            if (width > 0 && height > 0) {
+                return { width, height, scale: 1.5 };
             }
+        }
+
+        // Try explicit width/height attributes
+        const width = parseFloat(svg.getAttribute('width')?.replace('px', '') || '0');
+        const height = parseFloat(svg.getAttribute('height')?.replace('px', '') || '0');
+        if (width > 0 && height > 0) {
+            return { width, height, scale: 1.5 };
+        }
+
+        // Fallback to computed size
+        const rect = svg.getBoundingClientRect();
+        return {
+            width: rect.width || 600,
+            height: rect.height || 400,
+            scale: 1.5
+        };
+    }
+
+    createOptimizedImage(dataUrl) {
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = 'Diagram';
+        
+        Object.assign(img.style, {
+            display: 'block',
+            margin: '16px auto',
+            maxWidth: '100%',
+            height: 'auto',
+            maxHeight: '800px' // Prevent oversized images
+        });
+
+        return img;
+    }
+
+    replaceSvgWithImage(svg, img) {
+        const parent = svg.parentNode;
+        if (parent) {
+            parent.replaceChild(img, svg);
+        }
+    }
+
+    async svgToImageData(svgElement, { width, height, scale = 1 }) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = Math.max(1, Math.round(width * scale));
+            canvas.height = Math.max(1, Math.round(height * scale));
+
+            // Serialize SVG with proper namespace
+            let svgData = new XMLSerializer().serializeToString(svgElement);
+            if (!svgData.includes('xmlns')) {
+                svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+
+            img.onload = () => {
+                try {
+                    // White background for PDF clarity
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/png', 0.95));
+                } catch (err) {
+                    console.warn('Canvas conversion failed:', err);
+                    resolve(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`);
+                }
+            };
+
+            img.onerror = () => reject(new Error('SVG image load failed'));
+            img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`;
         });
     }
-    
-    async addMarkdownContentToPDF(pdf, markdownContent) {
-        let yPos = 20; // Start position from top
-        const pageHeight = 280; // A4 height minus margins
-        const pageWidth = 190; // A4 width minus margins
-        const lineHeight = 6;
-        const marginLeft = 10;
-        
-        // Set default font
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(11);
-        
-        // Split content into lines and process each
-        const lines = markdownContent.split('\n');
-        
-        for (const line of lines) {
-            // Check if we need a new page
-            if (yPos > pageHeight - 20) {
-                pdf.addPage();
-                yPos = 20;
-            }
-            
-            const trimmedLine = line.trim();
-            
-            if (!trimmedLine) {
-                // Empty line - add small space
-                yPos += lineHeight / 2;
-                continue;
-            }
-            
-            // Handle different markdown elements
-            if (trimmedLine.startsWith('# ')) {
-                // H1 - Large title
-                pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(20);
-                const text = trimmedLine.substring(2);
-                pdf.text(text, marginLeft, yPos);
-                yPos += lineHeight * 2;
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(11);
-                
-            } else if (trimmedLine.startsWith('## ')) {
-                // H2 - Section header
-                pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(16);
-                const text = trimmedLine.substring(3);
-                pdf.text(text, marginLeft, yPos);
-                yPos += lineHeight * 1.5;
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(11);
-                
-            } else if (trimmedLine.startsWith('### ')) {
-                // H3 - Subsection header
-                pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(14);
-                const text = trimmedLine.substring(4);
-                pdf.text(text, marginLeft, yPos);
-                yPos += lineHeight * 1.3;
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(11);
-                
-            } else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
-                // Bullet points
-                const text = '• ' + trimmedLine.substring(2);
-                const splitText = pdf.splitTextToSize(text, pageWidth - 20);
-                pdf.text(splitText, marginLeft + 5, yPos);
-                yPos += splitText.length * lineHeight;
-                
-            } else if (trimmedLine.match(/^\d+\. /)) {
-                // Numbered lists
-                const splitText = pdf.splitTextToSize(trimmedLine, pageWidth - 20);
-                pdf.text(splitText, marginLeft + 5, yPos);
-                yPos += splitText.length * lineHeight;
-                
-            } else if (trimmedLine.startsWith('```mermaid')) {
-                // Mermaid diagram placeholder
-                pdf.setFont('helvetica', 'italic');
-                pdf.setFontSize(10);
-                pdf.text('[Mermaid Diagram - see original for visual]', marginLeft, yPos);
-                yPos += lineHeight * 3; // Space for diagram
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(11);
-                
-                // Skip to end of mermaid block
-                let mermaidContent = '';
-                let i = lines.indexOf(line) + 1;
-                while (i < lines.length && !lines[i].trim().startsWith('```')) {
-                    mermaidContent += lines[i] + '\n';
-                    i++;
-                }
-                
-                // Add mermaid code as text
-                pdf.setFont('courier', 'normal');
-                pdf.setFontSize(9);
-                const mermaidLines = mermaidContent.trim().split('\n');
-                for (const mLine of mermaidLines) {
-                    if (yPos > pageHeight - 20) {
-                        pdf.addPage();
-                        yPos = 20;
-                    }
-                    pdf.text(mLine, marginLeft + 10, yPos);
-                    yPos += lineHeight * 0.8;
-                }
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(11);
-                yPos += lineHeight;
-                
-            } else if (trimmedLine.startsWith('```')) {
-                // Code blocks
-                if (trimmedLine === '```') {
-                    // End of code block
-                    continue;
-                }
-                pdf.setFont('courier', 'normal');
-                pdf.setFontSize(9);
-                const codeText = trimmedLine.substring(3); // Remove ```
-                if (codeText) {
-                    pdf.text(codeText, marginLeft + 5, yPos);
-                    yPos += lineHeight;
-                }
-                
-            } else if (trimmedLine.startsWith('`') && trimmedLine.endsWith('`')) {
-                // Inline code
-                pdf.setFont('courier', 'normal');
-                const text = trimmedLine.substring(1, trimmedLine.length - 1);
-                const splitText = pdf.splitTextToSize(text, pageWidth - 10);
-                pdf.text(splitText, marginLeft, yPos);
-                yPos += splitText.length * lineHeight;
-                pdf.setFont('helvetica', 'normal');
-                
-            } else if (trimmedLine.includes('**') || trimmedLine.includes('*')) {
-                // Bold/italic text (simplified - just treat as normal for now)
-                let text = trimmedLine.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
-                text = text.replace(/\*(.*?)\*/g, '$1'); // Remove italic markers
-                const splitText = pdf.splitTextToSize(text, pageWidth - 10);
-                pdf.text(splitText, marginLeft, yPos);
-                yPos += splitText.length * lineHeight;
-                
-            } else {
-                // Regular paragraph text
-                const splitText = pdf.splitTextToSize(trimmedLine, pageWidth - 10);
-                pdf.text(splitText, marginLeft, yPos);
-                yPos += splitText.length * lineHeight;
-            }
-            
-            // Add small spacing between elements
-            yPos += 2;
-        }
-    }
-        
-    loadSampleMarkdown() {
 
-        
+    loadSampleMarkdown() {
+        const sample = `# Welcome to the Refined Editor
+
+**A modern, elegant, and robust Markdown to PDF converter.**
+
+## Key Improvements
+
+-   🔩 **Bulletproof Layout:** Editor and preview panes scroll independently. No more page scroll or overflow.
+-   🍔 **Elegant Navigation:** A clean, collapsible hamburger menu in the top-left.
+-   🎨 **Catppuccin Theme:** Light (Latte) and Dark (Mocha) modes are preserved.
+-   ↔️ **Resizable Panels:** Adjust the editor and preview panes.
+-   🧘 **Focus Mode:** Hide the preview for distraction-free writing.
+`;
         const mdInput = document.getElementById('md-input');
-        if (!mdInput.value.trim()) {
+        if (!localStorage.getItem('markdown-content')) {
             mdInput.value = sample;
+        } else {
+            mdInput.value = localStorage.getItem('markdown-content');
         }
     }
 }
 
-// Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    new MarkdownToPDF();
-});
+document.addEventListener('DOMContentLoaded', () => new MarkdownToPDF());
